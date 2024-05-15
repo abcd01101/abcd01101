@@ -1,0 +1,204 @@
+import pygame
+import sys
+import random
+import math
+
+# 게임 초기화
+pygame.init()
+
+# 화면 크기 설정
+SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("브롤스타즈 비슷한 게임")
+
+# 색상
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+
+# 캐릭터 선택 화면
+def character_selection():
+    font = pygame.font.SysFont(None, 40)
+    selected_character = None
+
+    while True:
+        screen.fill(BLACK)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # 마우스 왼쪽 클릭
+                x, y = pygame.mouse.get_pos()
+                # 캐릭터 선택 로직 추가
+                if character_rect1.collidepoint(x, y):
+                    selected_character = "캐릭터 1"
+                elif character_rect2.collidepoint(x, y):
+                    selected_character = "캐릭터 2"
+                elif character_rect3.collidepoint(x, y):
+                    selected_character = "캐릭터 3"
+                return selected_character
+
+        # 캐릭터 선택 메시지 표시
+        message = "캐릭터를 선택하세요"
+        text = font.render(message, True, WHITE)
+        text_rect = text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50))
+        screen.blit(text, text_rect)
+
+        # 캐릭터 선택 영역 생성
+        character_rect1 = pygame.Rect(200, 300, 100, 100)
+        pygame.draw.rect(screen, WHITE, character_rect1)
+        character_rect2 = pygame.Rect(350, 300, 100, 100)
+        pygame.draw.rect(screen, WHITE, character_rect2)
+        character_rect3 = pygame.Rect(500, 300, 100, 100)
+        pygame.draw.rect(screen, WHITE, character_rect3)
+
+        # 캐릭터 선택 화면 업데이트
+        pygame.display.flip()
+
+# 게임 시작
+def start_game(selected_character):
+    font = pygame.font.SysFont(None, 40)
+    clock = pygame.time.Clock()
+    player = Character(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, RED)
+    bullets = pygame.sprite.Group()
+    computer = ComputerCharacter(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT), BLUE)
+
+    # 캐릭터 선택에 따라 플레이어의 능력 설정
+    if selected_character == "캐릭터 1":
+        player.speed = 8
+        player.attack_rate = 10
+    elif selected_character == "캐릭터 2":
+        player.speed = 5
+        player.attack_rate = 5
+    elif selected_character == "캐릭터 3":
+        player.speed = 3
+        player.attack_rate = 3
+
+    # 체력 바 초기화
+    player_health = 100
+    computer_health = 100
+
+    while True:
+        screen.fill(BLACK)
+        keys = pygame.key.get_pressed()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # 마우스 왼쪽 클릭
+                bullets.add(Bullet(player.rect.centerx, player.rect.centery, GREEN))
+
+        # 캐릭터 이동 업데이트
+        player.update(keys)
+
+        # 캐릭터 화면 경계 제한
+        player.rect.x = max(0, min(player.rect.x, SCREEN_WIDTH - player.rect.width))
+        player.rect.y = max(0, min(player.rect.y, SCREEN_HEIGHT - player.rect.height))
+
+        # 컴퓨터 캐릭터 이동 및 공격
+        computer.move_random()
+        if random.randint(1, 100) < computer.attack_rate:  # 일정 확률로 컴퓨터가 공격
+            bullets.add(Bullet(computer.rect.centerx, computer.rect.centery, GREEN))
+
+        # 총알 업데이트
+        bullets.update()
+
+        # 총알 제거 (화면 경계 벗어난 것)
+        for bullet in bullets.copy():
+            if bullet.rect.bottom <= 0:
+                bullets.remove(bullet)
+
+        # 총알과 캐릭터 충돌 확인
+        for bullet in bullets:
+            if bullet.color == GREEN and player.rect.colliderect(bullet.rect):
+                player_health -= 10
+                bullets.remove(bullet)
+            elif bullet.color == GREEN and computer.rect.colliderect(bullet.rect):
+                computer_health -= 10
+                bullets.remove(bullet)
+
+        # 캐릭터 그리기
+        for bullet in bullets:
+            pygame.draw.rect(screen, bullet.color, bullet.rect)
+        pygame.draw.rect(screen, WHITE, player.rect)
+        pygame.draw.rect(screen, BLUE, computer.rect)
+
+        # 체력 바 그리기
+        pygame.draw.rect(screen, RED, (50, 50, player_health, 10))
+        pygame.draw.rect(screen, RED, (SCREEN_WIDTH - 150, 50, computer_health, 10))
+
+        # 게임 화면 업데이트
+        pygame.display.flip()
+        clock.tick(60)
+
+        # 체력이 0 이하인 경우 게임 종료
+        if player_health <= 0 or computer_health <= 0:
+            game_over(player_health <= 0)
+
+# 게임 오버 화면
+def game_over(player_lost):
+    font = pygame.font.SysFont(None, 60)
+    if player_lost:
+        message = "You lost!"
+    else:
+        message = "You won!"
+    text = font.render(message, True, WHITE)
+    text_rect = text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+    screen.blit(text, text_rect)
+    pygame.display.flip()
+    pygame.time.delay(3000)
+    pygame.quit()
+    sys.exit()
+
+# 캐릭터 클래스
+class Character(pygame.sprite.Sprite):
+    def __init__(self, x, y, color):
+        super().__init__()
+        self.image = pygame.Surface((30, 30))
+        self.image.fill(color)
+        self.rect = self.image.get_rect(center=(x, y))
+        self.speed = 5
+        self.direction = None  # 초기에는 이동하지 않도록 수정
+        self.attack_rate = 0  # 추가: 공격 속도
+
+    def update(self, keys):
+        if keys[pygame.K_UP]:
+            self.rect.y -= self.speed
+        elif keys[pygame.K_DOWN]:
+            self.rect.y += self.speed
+        elif keys[pygame.K_LEFT]:
+            self.rect.x -= self.speed
+        elif keys[pygame.K_RIGHT]:
+            self.rect.x += self.speed
+
+    def move_random(self):
+        pass  # 캐릭터 클래스에는 이동 관련 메서드만 있습니다.
+
+# 컴퓨터 캐릭터 클래스
+class ComputerCharacter(Character):
+    def move_random(self):
+        self.rect.x += random.randint(-5, 5)
+        self.rect.y += random.randint(-5, 5)
+        self.rect.x = max(0, min(self.rect.x, SCREEN_WIDTH - self.rect.width))
+        self.rect.y = max(0, min(self.rect.y, SCREEN_HEIGHT - self.rect.height))
+
+# 총알 클래스
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, x, y, color):
+        super().__init__()
+        self.image = pygame.Surface((5, 10))
+        self.image.fill(color)
+        self.rect = self.image.get_rect(center=(x, y))
+        self.speed = 10
+        self.color = color  # 총알의 색을 저장
+
+    def update(self):
+        self.rect.y -= self.speed
+
+# 캐릭터 선택 화면 실행
+selected_character = character_selection()
+
+# 게임 시작
+start_game(selected_character)
